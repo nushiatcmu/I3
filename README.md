@@ -167,37 +167,6 @@ poetry run python src/materialise.py
 
 ---
 
-## 🛠️ CI/CD (`.github/workflows/ci.yml`)
-
-```yaml
-name: feathr‑demo‑ci
-on: [push, pull_request]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-
-      - name: Install deps
-        run: |
-          pip install --upgrade pip
-          pip install feathr black pytest
-
-      - name: Lint & unit tests
-        run: |
-          black --check src
-          feathr lint src
-          pytest -q
-```
-
----
-
 ## ⚙️ Configuration (`configs/feathr_config.yaml`)
 
 ```yaml
