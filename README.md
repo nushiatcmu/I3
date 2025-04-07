@@ -309,7 +309,7 @@ Stage 0: Stream features to Redis (hash key pattern: user_id:*) (  4  +   0  )  
 [2025‑04‑07 14:22:53]  INFO  feathr.client: Example online lookup for user_id=42
 Online lookup: {'watch_time_30d': 17432.0, 'lifetime_days': 386}
 
-✨  Done! Total wall‑clock time: 2 min 41 s
+Total wall‑clock time: 2 min 41 s
 ```
 
 ### Next Steps
