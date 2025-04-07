@@ -11,9 +11,6 @@ The repo demonstrates:
 * CI/CD hooks (GitHub Actions) and observability with Prometheus/Grafana
 * Cloud‑agnostic deployment—flip a single flag to run the same code on local Spark, Databricks, EMR, or Snowflake
 
-<p align="center">
-  <img src="docs/feathr_demo_architecture.png" width="600" alt="Architecture diagram"/>
-</p>
 
 ---
 
