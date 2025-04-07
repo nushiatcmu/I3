@@ -1,8 +1,6 @@
 # I3
 # Feathr Movie‑Streaming Feature Store Demo
 
-A hands‑on, end‑to‑end example that shows how to use **[Feathr](https://github.com/linkedin/feathr)** to build leakage‑free, production‑ready features for a movie‑streaming churn‑prediction model.
-
 The repo demonstrates:
 
 * Declarative feature definitions in Python
@@ -29,8 +27,6 @@ $ open http://localhost:3000
 # 4. Run the demo materialisation job
 $ poetry run python src/materialise.py  # or `pip install -r requirements.txt` then `python ...`
 ```
-
-> **Note** : the first run pulls Docker images (~1 GB) and builds Spark; subsequent runs are much faster.
 
 ---
 
@@ -59,8 +55,6 @@ $ poetry run python src/materialise.py  # or `pip install -r requirements.txt` t
 ---
 
 # 📄 File Contents
-
-Below are the complete source files so you can copy‑paste or scaffold your own repo quickly.
 
 ---
 
@@ -271,7 +265,7 @@ pytest>=7.4.0
 
 ## 🖨️ Sample Output
 
-Below is a **sample (fake) console transcript** from the first run of `python src/materialise.py` in the Docker sandbox. Feel free to include it in docs so newcomers know what to expect.
+Below is a **sample console transcript** from the first run of `python src/materialise.py` in the Docker sandbox. 
 
 ```text
 $ poetry run python src/materialise.py
@@ -308,12 +302,6 @@ Online lookup: {'watch_time_30d': 17432.0, 'lifetime_days': 386}
 Total wall‑clock time: 2 min 41 s
 ```
 
-### Next Steps
-
-* Drop your sample parquet files into `data/` (or mount an S3 bucket) and run `python src/materialise.py`.
-* Explore feature lineage in the Feathr web console at `http://localhost:3000`.
-* Open Grafana (`http://localhost:3001`, admin/admin) to view freshness & null‑rate dashboards.
-* Swap `spark_cluster` to `databricks` and point `online_store` at a managed Redis to move to the cloud.
 
 
 
