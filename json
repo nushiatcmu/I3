@@ -1,0 +1,12 @@
+project: movie_streaming_demo
+spark_cluster: local[*]          # or 'databricks', 'emr', etc.
+offline_store:
+  type: parquet
+  location: data/feathr_offline
+online_store:
+  type: redis
+  host: localhost
+  port: 6379
+registry:
+  type: file
+  path: .feathr/registry.db
