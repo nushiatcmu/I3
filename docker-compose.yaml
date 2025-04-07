@@ -1,0 +1,40 @@
+version: "3.9"
+services:
+  spark:
+    image: bitnami/spark:3.4.1
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+    ports:
+      - "7077:7077"   # Spark master
+      - "8080:8080"   # Spark UI
+    volumes:
+      - ./:/workspace
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: prom/prometheus:v2.49.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  feathr-ui:
+    image: linkedin/feathr-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - FEATHR_BACKEND_URL=http://localhost:8080
