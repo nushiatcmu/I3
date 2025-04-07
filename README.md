@@ -11,6 +11,9 @@ The repo demonstrates:
 * CI/CD hooks (GitHub Actions) and observability with Prometheus/Grafana
 * Cloud‑agnostic deployment—flip a single flag to run the same code on local Spark, Databricks, EMR, or Snowflake
 
+<p align="center">
+  <img src="docs/feathr_demo_architecture.png" width="600" alt="Architecture diagram"/>
+</p>
 
 ---
 
@@ -57,43 +60,43 @@ $ poetry run python src/materialise.py  # or `pip install -r requirements.txt` t
 └── README.md
 ```
 
-### Key Files
+---
 
-| Path | Purpose |
-|------|---------|
-| `src/features.py` | Declarative feature & anchor definitions (Python DSL) |
-| `src/materialise.py` | One‑shot script that calls FeathrClient to **register**, **materialise offline**, and **materialise online** |
-| `configs/feathr_config.yaml` | Cluster/registry/online‑store settings; change a single line to run on Databricks or EMR |
-| `docker-compose.yaml` | Spins up Spark 3.4, Redis 7, Prometheus & Grafana dashboards |
-| `.github/workflows/ci.yml` | Runs `pytest` + `feathr lint` + Black formatting checks |
+# 📄 File Contents
+
+Below are the complete source files so you can copy‑paste or scaffold your own repo quickly.
 
 ---
 
-## 🧑‍💻 Defining Features (excerpt from `src/features.py`)
-
+## `src/features.py`
 ```python
+"""Declarative feature and anchor definitions for the movie‑streaming demo."""
 from feathr import (
-    FeathrClient,
     HdfsSource,
-    ObservationSettings,
     Feature,
     FeatureAnchor,
     TypedKey,
     ValueType,
 )
 
-# --- 1. Data sources ---------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 1. Data sources
+# ---------------------------------------------------------------------------
 watch_src = HdfsSource(name="watch_events", path="data/watch_events.parquet")
 users_src = HdfsSource(name="users", path="data/users.parquet")
 
-# --- 2. Entity keys ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 2. Entity keys
+# ---------------------------------------------------------------------------
 user_key = TypedKey(
     key_column="user_id",
     key_column_type=ValueType.INT32,
     description="User identifier",
 )
 
-# --- 3. Feature specs --------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 3. Feature specs
+# ---------------------------------------------------------------------------
 f_watch_30d = Feature(
     name="watch_time_30d",
     key=user_key,
@@ -109,24 +112,30 @@ f_lifetime = Feature(
     transform_expr="DATEDIFF('day', CURRENT_DATE, signup_date)",
 )
 
-# --- 4. Anchors --------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 4. Anchors
+# ---------------------------------------------------------------------------
 anchor_watch = FeatureAnchor(
-    name="watch_anchor", source=watch_src, features=[f_watch_30d]
+    name="watch_anchor",
+    source=watch_src,
+    features=[f_watch_30d],
 )
+
 anchor_users = FeatureAnchor(
-    name="user_anchor", source=users_src, features=[f_lifetime]
+    name="user_anchor",
+    source=users_src,
+    features=[f_lifetime],
 )
 ```
 
-Full source lives in `src/features.py`.
-
 ---
 
-## 🔄 Materialisation Workflow (`src/materialise.py`)
-
+## `src/materialise.py`
 ```python
+"""Entry‑point script to register and materialise features offline & online."""
 from datetime import datetime
 from feathr import FeathrClient, ObservationSettings
+
 from features import (
     anchor_watch,
     anchor_users,
@@ -134,41 +143,59 @@ from features import (
     f_lifetime,
 )
 
-client = FeathrClient(config_path="configs/feathr_config.yaml")
 
-# 1. Register features & anchors in the registry
-client.register_features(anchor_watch, anchor_users)
+def main() -> None:
+    client = FeathrClient(config_path="configs/feathr_config.yaml")
 
-# 2. Backfill offline features (Parquet/Delta)
-client.materialize_features(
-    features=[f_watch_30d, f_lifetime],
-    start_time="2024-01-01",
-    end_time=datetime.utcnow().strftime("%Y-%m-%d"),
-)
+    # ---------------------------------------------------------------------
+    # 1. Register anchors & features in the registry
+    # ---------------------------------------------------------------------
+    client.register_features(anchor_watch, anchor_users)
 
-# 3. Push to online store (Redis)
-client.materialize_features_online(features=[f_watch_30d, f_lifetime])
-```
+    # ---------------------------------------------------------------------
+    # 2. Backfill offline features (Parquet/Delta)
+    # ---------------------------------------------------------------------
+    client.materialize_features(
+        features=[f_watch_30d, f_lifetime],
+        start_time="2024-01-01",
+        end_time=datetime.utcnow().strftime("%Y-%m-%d"),
+    )
 
-Run it:
+    # ---------------------------------------------------------------------
+    # 3. Push latest feature values to the online store (Redis)
+    # ---------------------------------------------------------------------
+    client.materialize_features_online(features=[f_watch_30d, f_lifetime])
 
-```bash
-poetry run python src/materialise.py
+    # ---------------------------------------------------------------------
+    # 4. Example: fetch point‑in‑time training dataset
+    # ---------------------------------------------------------------------
+    obs = ObservationSettings(
+        obs_path="data/labels.parquet",
+        timestamp_column="ts",
+    )
+    training_df = client.get_offline_features(
+        observation_settings=obs,
+        features=[f_watch_30d, f_lifetime],
+    )
+    print("Training dataset rows:", training_df.count())
+
+    # ---------------------------------------------------------------------
+    # 5. Example: fetch online features for inference
+    # ---------------------------------------------------------------------
+    online_resp = client.get_online_features(
+        feature_names=["watch_time_30d", "lifetime_days"],
+        key={"user_id": 42},
+    )
+    print("Online lookup:", online_resp)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 ---
 
-## 📈 Observability
-
-* **Prometheus** scrapes `/metrics` from the Feathr job for per‑feature *freshness* & *null‑rate* gauges.
-* **Grafana** dashboards at <http://localhost:3001> (admin / admin) with example alerts:
-  * Feature not updated in 30 min
-  * Null‑rate > 5 %
-
----
-
-## ⚙️ Configuration (`configs/feathr_config.yaml`)
-
+## `configs/feathr_config.yaml`
 ```yaml
 project: movie_streaming_demo
 spark_cluster: local[*]            # or "databricks", "emr", "snowflake"
@@ -187,32 +214,114 @@ registry:
   path: .feathr/registry.db
 ```
 
-Swap **`spark_cluster`** to `databricks` and add your workspace token to run the exact same code in the cloud.
+---
+
+## `docker-compose.yaml`
+```yaml
+version: "3.9"
+services:
+  spark:
+    image: bitnami/spark:3.4.1
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+    ports:
+      - "7077:7077"   # Spark master
+      - "8080:8080"   # Spark UI
+    volumes:
+      - ./:/workspace
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: prom/prometheus:v2.49.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  feathr-ui:
+    image: linkedin/feathr-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - FEATHR_BACKEND_URL=http://localhost:8080
+```
 
 ---
 
-## 🏁 Benchmarks
-
-| Dataset | Spark Nodes | Materialise Time | Offline Size | Redis Ingest Rate |
-|---------|-------------|------------------|--------------|-------------------|
-| 10 M watch events | 3 × m5.xlarge | **4.2 min** | 380 MB | 25 k rows/s |
-
+## `requirements.txt`
+```
+feathr>=0.9.0
+pyspark>=3.4.0
+redis>=5.0.0
+prometheus-client>=0.18.0
+black>=23.10.0
+pytest>=7.4.0
+```
 ---
 
-## 🙌 Contributing
+## 🖨️ Sample Output
 
-1. Fork the repo & create a feature branch
-2. Commit your changes with clear messages
-3. Open a PR—GitHub Actions will lint & test automatically
-4. Once merged, the main branch auto‑deploys the Docker image tagged with the commit SHA
+Below is a **sample (fake) console transcript** from the first run of `python src/materialise.py` in the Docker sandbox. Feel free to include it in docs so newcomers know what to expect.
 
----
+```text
+$ poetry run python src/materialise.py
+[2025‑04‑07 14:20:12]  INFO  feathr.client: Using config configs/feathr_config.yaml
+[2025‑04‑07 14:20:12]  INFO  feathr.client: Registering 2 feature anchors and 2 features…
+[2025‑04‑07 14:20:12]  INFO  feathr.registry: Wrote registry to .feathr/registry.db
 
-## 📄 License
+────────────────────────────────────────  Spark Job 1/3  ────────────────────────────────────────
+Stage 0: Parse feature plan                                     (  1  +   0  )   00:00 ✓
+Stage 1: Scan data/watch_events.parquet                         ( 16  +   0  )   00:11 ✓
+Stage 2: Aggregate watch_time_30d                               ( 16  +   0  )   01:43 ✓
+Stage 3: Write Parquet offline sink                             (  1  +   0  )   00:08 ✓
+──────────────────────────────────────────────────────────────────────────────────────────────────
+[2025‑04‑07 14:22:15]  INFO  feathr.client: ✔︎ Offline materialisation finished (watch_time_30d)
 
-[Apache‑2.0](LICENSE)
+────────────────────────────────────────  Spark Job 2/3  ────────────────────────────────────────
+Stage 0: Scan data/users.parquet                               (  8  +   0  )   00:04 ✓
+Stage 1: Compute lifetime_days                                 (  8  +   0  )   00:00 ✓
+Stage 2: Write Parquet offline sink                            (  1  +   0  )   00:02 ✓
+──────────────────────────────────────────────────────────────────────────────────────────────────
+[2025‑04‑07 14:22:24]  INFO  feathr.client: ✔︎ Offline materialisation finished (lifetime_days)
 
----
+────────────────────────────────────────  Spark Job 3/3  ────────────────────────────────────────
+Stage 0: Stream features to Redis (hash key pattern: user_id:*) (  4  +   0  )   00:22 ✓
+──────────────────────────────────────────────────────────────────────────────────────────────────
+[2025‑04‑07 14:22:48]  INFO  feathr.client: ✔︎ Online materialisation finished (2 features, 4.2 M rows)
+
+[2025‑04‑07 14:22:48]  INFO  feathr.client: Fetching point‑in‑time training dataset…
+[2025‑04‑07 14:22:53]  INFO  feathr.client: Training dataset rows: 105 328
+
+[2025‑04‑07 14:22:53]  INFO  feathr.client: Example online lookup for user_id=42
+Online lookup: {'watch_time_30d': 17432.0, 'lifetime_days': 386}
+
+✨  Done! Total wall‑clock time: 2 min 41 s
+```
+
+### Next Steps
+
+* Drop your sample parquet files into `data/` (or mount an S3 bucket) and run `python src/materialise.py`.
+* Explore feature lineage in the Feathr web console at `http://localhost:3000`.
+* Open Grafana (`http://localhost:3001`, admin/admin) to view freshness & null‑rate dashboards.
+* Swap `spark_cluster` to `databricks` and point `online_store` at a managed Redis to move to the cloud.
+
+
+
+
 
 
 
